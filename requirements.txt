@@ -1,0 +1,2 @@
+# Version used to validate PDF parsing, annotation geometry, and comparison.
+pypdf==6.10.0

@@ -1,0 +1,26 @@
+# Personal configuration, exports, runtime state, and generated artifacts
+/config.local.json
+/.state/
+/input/
+/mounts/
+/output/
+/.venv/
+.env
+.env.*
+*.pdf
+*.ris
+*.bib
+*.xpi
+*.zip
+*.sqlite*
+*.db
+*.log
+rclone.conf
+logins.json
+
+# Python and editors
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+*~

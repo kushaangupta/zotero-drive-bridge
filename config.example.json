@@ -1,0 +1,7 @@
+{
+  "collection_name": "Research",
+  "destination_drive_uri": "google-drive://reader@example.org/ACCOUNT_ROOT_ID/DESTINATION_FOLDER_ID",
+  "pdf_python": ".venv/bin/python",
+  "desktop_python": "/usr/bin/python3",
+  "poll_minutes": 5
+}

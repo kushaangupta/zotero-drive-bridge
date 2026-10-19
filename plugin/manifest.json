@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "Zotero Drive Annotation Bridge",
+  "version": "0.2.0",
+  "description": "Mirror PDF annotations and Google Drive comments using an existing GNOME account.",
+  "author": "Contributors",
+  "applications": {
+    "zotero": {
+      "id": "paperpile-drive-bridge@local",
+      "update_url": "https://updates.invalid/paperpile-drive-bridge/updates.json",
+      "strict_min_version": "7.0",
+      "strict_max_version": "7.0.*"
+    }
+  }
+}

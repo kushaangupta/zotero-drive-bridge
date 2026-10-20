@@ -1,5 +1,7 @@
 # Zotero, with an organized Google Drive library
 
+**Just the steps? Start with the [quick setup guide (TL;DR)](QUICKSTART.md).**
+
 I wanted to collect and annotate papers in Zotero, open them on my phone, and
 still browse a Drive folder full of sensibly named, annotated PDFs. This
 repository puts that workflow together with a small Zotero add-on and
@@ -298,6 +300,7 @@ RIS metadata nor this bridge can reconstruct their contents.
 
 | File | Purpose |
 | --- | --- |
+| `QUICKSTART.md` | Essential setup commands and everyday use |
 | `docs/migration.md` | One-time import, PDF recovery, and initial Drive publication |
 | `scripts/setup.py`, `bridge_config.py` | Local configuration, checks, build, and Zotero launcher commands |
 | `scripts/list_drive_mounts.py` | Discover mounted GNOME Drive roots |

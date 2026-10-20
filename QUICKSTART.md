@@ -19,14 +19,16 @@ sudo apt install python3-venv python3-gi gvfs-backends gnome-online-accounts
 - Add your Google account in **GNOME Settings → Online Accounts**; enable files.
 - Open Drive in Files. Create a destination folder and copy its location with
   **Ctrl+L** (`google-drive://…`).
-- In `config.local.json`, set `destination_drive_uri` to that location and
-  `collection_name` to the exact Zotero collection name. Keep the other defaults.
+- In `config.local.json`, set `destination_drive_uri` to that location.
+  `collection_name` is only for the one-time migration; sync watches My Library.
 - Keep PDFs stored inside Zotero; disable ZotMoov automatic moving.
 
 ## 3. Import once — skip if already migrated
 
-The first setup needs the collection/file mappings created by this import.
+The first setup needs the initial file registry created by this import.
 Back up Zotero first. Keep original PDFs in a separate source folder.
+
+Set `collection_name` to the exact import collection name for this step.
 
 1. Put the matching RIS and JSON exports in `input/library.ris` and
    `input/library.json`. Use PDFs containing your existing annotations.
@@ -80,12 +82,17 @@ Use `https://app.koofr.net/dav/Koofr` if a field expects the full URL.
 
 ## Everyday use
 
-- Add new papers and stored PDFs directly to the configured Zotero collection.
+- Add new papers and stored PDFs anywhere in **My Library**. Any collection,
+  nested collection, or no collection works; multiple memberships do not duplicate PDFs.
+- Standalone PDFs need a parent reference with authors, year, and title first.
 - Annotate in Zotero on desktop or Android; sync Zotero on both devices.
 - Keep desktop Zotero open: the bridge refreshes Drive every five minutes.
   Use **Tools → Sync Drive PDF annotations now** for an immediate refresh.
-- Drive copies use `LastAuthor/Year-FirstAuthor-TitleInPascalCase.pdf`.
+- Drive copies use `F. LastAuthor/Year-FirstAuthor-TitleInPascalCase.pdf`.
   Supported Drive preview comments also return to Zotero's PDF reader.
 - Test with a comment **on a PDF highlight**, rather than a separate library note.
+
+Author folders keep a saved identity map; middle-name variations do not create
+extra folders. [Author matching and review](docs/author-folders.md).
 
 Keep the checkout at its installed location. No repeat RIS import is needed.

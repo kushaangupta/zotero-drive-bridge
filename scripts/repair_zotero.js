@@ -202,7 +202,8 @@
 
           // Prepare annotated copies locally. Publishing them to Drive is a
           // separate step, so original Paperpile files cannot be overwritten.
-          const surname = safeComponent(record.authors.at(-1)?.last, Z);
+          const surname = safeComponent(Object.hasOwn(record, "author_folder")
+            ? record.author_folder : record.authors.at(-1)?.last, Z);
           if (options.exportCopies !== false && surname && hasNamingMetadata) {
             const exportDirectory = exportRoot + "/" + surname;
             await io.makeDirectory(exportDirectory, {createAncestors: true, ignoreExisting: true});

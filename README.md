@@ -15,18 +15,21 @@ preview; supported comments return to Zotero as PDF annotations.
 The folder layout follows publication order:
 
 ```text
-LastAuthorSurname/
+F. LastAuthorSurname/
 └── 2024-FirstAuthorSurname-AnExamplePaperTitle.pdf
 ```
 
-The folder uses the **last author's surname**. The filename uses the year, the
-**first author's surname**, and the title in PascalCase. Missing metadata and
-ambiguous matches need review.
+The folder uses the **last author's first initial and surname**, such as
+`N. Miolane`. The filename uses the year, the **first author's surname**, and
+the title in PascalCase. A saved author map keeps initials, full first names,
+and optional middle names together when the match is unambiguous.
+[How author folders are matched](docs/author-folders.md).
 
 ## What everyday use looks like
 
-1. Save a reference and its PDF in Zotero. Add it directly to the configured
-   collection; the bridge watches that collection's items.
+1. Save a reference and its PDF anywhere in **My Library**. The bridge watches
+   the whole personal library, including items in nested collections or no
+   collection. A paper in several collections still gets one copy per attachment.
 2. Keep the PDF as a **stored attachment** in Zotero. Fill in its title, date,
    and authors so the Drive copy can be named correctly.
 3. Read and annotate in desktop Zotero or Zotero for Android. Native Zotero
@@ -81,7 +84,7 @@ systems and Zotero major versions need adaptation and testing.
 
 You need:
 
-- Zotero with stored PDF attachments in a personal-library collection.
+- Zotero with stored PDF attachments in **My Library**.
 - A writable Google Drive destination, connected through GNOME Online Accounts.
 - Python 3.11 or newer. The system Python needs PyGObject/GIO; a virtual
   environment supplies the PDF library.
@@ -131,7 +134,7 @@ Edit the ignored `config.local.json`:
 
 | Setting | What to enter |
 | --- | --- |
-| `collection_name` | Exact Zotero collection name, such as `Research` |
+| `collection_name` | Collection used only for the one-time import/repair, such as `Research`; routine sync watches all of My Library |
 | `destination_drive_uri` | GNOME URI of the folder for organized PDF copies |
 | `pdf_python` | Usually `.venv/bin/python` |
 | `desktop_python` | Usually `/usr/bin/python3`, with GIO installed |
@@ -154,8 +157,9 @@ source-folder settings, use the next step.
 The included bootstrap starts from an export of an existing reference library.
 Follow the separate [one-time migration guide](docs/migration.md) to import
 references, recover stored PDFs and embedded annotations, and publish the first
-verified Drive copies. It also creates the collection and file mappings the
-bridge needs. Installing the add-on alone does not initialize those mappings.
+verified Drive copies. It also creates the initial file registry the bridge
+needs. Installing the add-on alone does not initialize that registry. Routine
+sync then watches all of My Library, independently of the import collection.
 
 If you already completed that migration, skip it. Keep your existing collection
 and local state. For routine operation, use Zotero and the bridge's sync menu.
@@ -247,6 +251,10 @@ the tested workflow, not every possible PDF layout or Drive comment format.
 
 ## Things that were confusing the first time
 
+**A standalone PDF has no organized Drive copy.** Use Zotero's metadata
+retrieval or **Create Parent Item**, then fill in its authors, year, and title.
+The bridge reports these PDFs in its status instead of inventing author names.
+
 **The phone has no paper titles.** Check Zotero data sync and matching Zotero
 accounts. Koofr supplies attachment files, not the reference list.
 
@@ -290,8 +298,10 @@ require review. Comment-body updates use a fresh comparison and an audit log;
 the API does not provide a fully atomic comment-edit transaction. PDF replacement
 uses an ETag with `If-Match` to reject stale writes.
 
-This targets stored PDFs in one personal Zotero collection and one registered
-Drive destination. Group libraries, arbitrary PDF editors, a continuously
+This targets stored PDFs attached to references across **My Library** and one
+registered Drive destination. Trash and group libraries are excluded. Standalone
+PDFs need a parent reference with author, year, and title metadata before they
+can be named and published. Group libraries, arbitrary PDF editors, a continuously
 running server, and platform-independent background sync are outside the
 implemented workflow. Existing missing PDFs still need to be located; neither
 RIS metadata nor this bridge can reconstruct their contents.
@@ -301,10 +311,12 @@ RIS metadata nor this bridge can reconstruct their contents.
 | File | Purpose |
 | --- | --- |
 | `QUICKSTART.md` | Essential setup commands and everyday use |
+| `docs/author-folders.md` | Stable author identities, folder changes, and ambiguous-name review |
 | `docs/migration.md` | One-time import, PDF recovery, and initial Drive publication |
 | `scripts/setup.py`, `bridge_config.py` | Local configuration, checks, build, and Zotero launcher commands |
 | `scripts/list_drive_mounts.py` | Discover mounted GNOME Drive roots |
 | `scripts/index_gnome_drive.py`, `prepare_import.py`, `repair_zotero.js` | Source adapter and one-time migration |
+| `scripts/author_folders.py`, `organize_author_folders.py` | Resolve author identities and reorganize Drive files in place |
 | `scripts/publish_gnome_drive.py` | Resumable, hash-verified initial publication |
 | `plugin/` | Zotero add-on, timer, menus, and PDF export orchestration |
 | `scripts/gnome_drive_api.py`, `inspect_drive_comments.py` | Read Drive records through GNOME OAuth |

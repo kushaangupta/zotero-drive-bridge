@@ -133,6 +133,21 @@ test('a failed annotation import can resume using the attachment already copied'
   assert.equal(f.calls.imports, 1);
 });
 
+test('the prepared author folder controls the migration export layout', async t => {
+  const f = await fixture(t);
+  f.record.author_folder = 'G. Garcia';
+  const report = await f.run();
+  assert.match(report.results[0].export_path, /G\. Garcia\/2024-Smith-TestPaper\.pdf$/);
+});
+
+test('an ambiguous prepared author does not fall back to a mixed surname folder', async t => {
+  const f = await fixture(t);
+  f.record.author_folder = null;
+  const report = await f.run();
+  assert.equal(report.summary.annotated_exports, 0);
+  assert.equal(report.results[0].export_needs_metadata_review, true);
+});
+
 test('unresolved PDFs and references without PDFs remain references without fabricated attachments', async t => {
   const f = await fixture(t);
   f.record.attachments[0].mounted = null;

@@ -236,7 +236,7 @@ def check_remote_pdfs():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("phase", choices=("pull", "push"))
+    parser.add_argument("phase", choices=("pull", "organize", "push"))
     args = parser.parse_args()
     (PROJECT / ".state").mkdir(exist_ok=True)
     with (PROJECT / ".state/bridge-cycle.lock").open("w") as lock:
@@ -245,6 +245,11 @@ def main():
             check_remote_pdfs()
             subprocess.run(["/usr/bin/python3", str(PROJECT / "scripts/inspect_drive_comments.py")], check=True)
             subprocess.run([str(PDF_PYTHON), str(PROJECT / "scripts/prepare_drive_annotations.py")], check=True)
+        elif args.phase == "organize":
+            from organize_author_folders import organize
+            plan = organize(apply=True)
+            if plan.get("applied", {}).get("errors"):
+                raise SystemExit("Author folder changes need review; see .state/author-folder-plan.json")
         else:
             subprocess.run([str(PDF_PYTHON), str(PROJECT / "scripts/prepare_drive_exports.py")], check=True)
             push()

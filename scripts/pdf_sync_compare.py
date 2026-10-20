@@ -12,6 +12,7 @@ import json
 import sys
 
 from pypdf import PdfReader
+from pypdf.errors import LimitReachedError
 from pypdf.generic import IndirectObject, StreamObject, DictionaryObject, ArrayObject, NameObject
 
 from drive_annotation_codec import text, overlap
@@ -20,7 +21,7 @@ MARKUP = {'/Highlight','/Underline','/StrikeOut','/Squiggly','/Text','/FreeText'
           '/Ink','/Square','/Circle','/Polygon','/PolyLine','/Caret','/Stamp','/Popup'}
 
 
-def document_hash(pdf):
+def document_hash(pdf, decode_streams=True):
     cache, active = {}, set()
 
     def digest(value):
@@ -37,8 +38,25 @@ def document_hash(pdf):
             if isinstance(value, DictionaryObject):
                 skip = {'/Parent','/P'}
                 if isinstance(value, StreamObject):
-                    skip |= {'/Length','/Filter','/DecodeParms','/DL'}
-                    h.update(hashlib.sha256(value.get_data()).digest())
+                    skip |= {'/Length','/DL'}
+                    if not decode_streams:
+                        data = value._data
+                        h.update(b'encoded-stream\0')
+                    else:
+                        try:
+                            data = value.get_data()
+                        except LimitReachedError:
+                            # Keep pypdf's decompression limit. Oversized streams
+                            # use encoded bytes plus filter parameters; a changed
+                            # encoding conservatively requires review.
+                            data = value._data
+                            if not isinstance(data, bytes):
+                                raise
+                            h.update(b'encoded-stream\0')
+                        else:
+                            skip |= {'/Filter','/DecodeParms'}
+                            h.update(b'decoded-stream\0')
+                    h.update(hashlib.sha256(data).digest())
                 for key in sorted(value):
                     if key not in skip:
                         h.update(str(key).encode())
@@ -97,7 +115,11 @@ def compare(local, remote):
             matched.add(index)
         else:
             extras += 1
-    return {'same_document':document_hash(local)==document_hash(remote),
+    # Annotation exports normally preserve compressed page/image streams. This
+    # exact encoded comparison avoids expanding large resources unnecessarily.
+    same_document = (document_hash(local, decode_streams=False) == document_hash(remote, decode_streams=False)
+                     or document_hash(local) == document_hash(remote))
+    return {'same_document':same_document,
             'same_annotations':extras==0 and len(matched)==len(native),
             'remote_extra_annotations':extras, 'local_additions':len(native)-len(matched)}
 

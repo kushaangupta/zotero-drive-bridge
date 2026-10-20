@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import re
 
+from author_folders import plan_authors
+
 
 def prepare(ris_path, json_path, index_path, output_dir, collection_name=None):
     original = ris_path.read_text()
@@ -36,6 +38,11 @@ def prepare(ris_path, json_path, index_path, output_dir, collection_name=None):
     collection_name = collection_name or ris_path.stem
     ris_name = re.sub(r'[\\/:*?"<>|]', "_", collection_name).strip(". ") or "Paperpile"
     (output_dir / (ris_name + ".ris")).write_text(rewritten)
+    author_plan = plan_authors([{
+        "attachment_key": record["_id"],
+        "firstName": (record.get("author") or [{}])[-1].get("first", ""),
+        "lastName": (record.get("author") or [{}])[-1].get("last", ""),
+    } for record in records])
     manifest_rows = []
     for record in records:
         manifest_rows.append({
@@ -44,6 +51,7 @@ def prepare(ris_path, json_path, index_path, output_dir, collection_name=None):
             "doi": record.get("doi", ""),
             "citekey": record.get("citekey", ""),
             "authors": record.get("author", []),
+            "author_folder": author_plan["assignments"].get(record["_id"], {}).get("folder"),
             "published": record.get("published", {}),
             "attachments": [{
                 **attachment,
@@ -53,7 +61,8 @@ def prepare(ris_path, json_path, index_path, output_dir, collection_name=None):
     manifest = {
         "collection_name": collection_name,
         "references": manifest_rows,
-        "folder_pattern": "{last_author_surname}",
+        "folder_pattern": "{last_author_first_initial}. {last_author_surname}",
+        "author_review": author_plan["review"],
         "filename_pattern": "{year}-{first_author_surname}-{title_pascal_case}.pdf",
     }
     (output_dir / "migration-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")

@@ -1,10 +1,12 @@
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
+import zlib
 
 from pypdf import PdfWriter
 from pypdf.annotations import Highlight
-from pypdf.generic import ArrayObject, FloatObject, NameObject, TextStringObject, DictionaryObject, DecodedStreamObject
+from pypdf.generic import ArrayObject, FloatObject, NameObject, TextStringObject, DictionaryObject, DecodedStreamObject, EncodedStreamObject
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from pdf_sync_compare import compare, document_hash
@@ -60,6 +62,39 @@ class ComparisonTests(unittest.TestCase):
             stream.set_data(data)
             writer.pages[0][NameObject('/Contents')] = writer._add_object(stream)
         self.assertFalse(compare(local,remote)['same_document'])
+
+    def compressed_document(self, content, level=6):
+        writer = document()
+        stream = EncodedStreamObject()
+        stream._data = zlib.compress(content, level)
+        stream[NameObject('/Filter')] = NameObject('/FlateDecode')
+        writer.pages[0][NameObject('/Contents')] = writer._add_object(stream)
+        return writer
+
+    def test_oversized_streams_compare_without_disabling_the_decompression_limit(self):
+        local = self.compressed_document(b'original' * 1000)
+        remote = self.compressed_document(b'original' * 1000)
+        changed = self.compressed_document(b'changed!' * 1000)
+        with patch('pypdf.filters.ZLIB_MAX_OUTPUT_LENGTH', 32):
+            self.assertTrue(compare(local, remote)['same_document'])
+            self.assertFalse(compare(local, changed)['same_document'])
+
+    def test_differently_encoded_oversized_streams_require_review(self):
+        local = self.compressed_document(b'original' * 1000, level=1)
+        remote = self.compressed_document(b'original' * 1000, level=9)
+        with patch('pypdf.filters.ZLIB_MAX_OUTPUT_LENGTH', 32):
+            self.assertFalse(compare(local, remote)['same_document'])
+
+    def test_identical_encoded_resources_do_not_need_decompression(self):
+        local = self.compressed_document(b'original' * 1000)
+        remote = self.compressed_document(b'original' * 1000)
+        with patch.object(EncodedStreamObject, 'get_data', side_effect=AssertionError('unnecessary decode')):
+            self.assertTrue(compare(local, remote)['same_document'])
+
+    def test_different_compression_of_normal_streams_still_matches(self):
+        local = self.compressed_document(b'original' * 1000, level=1)
+        remote = self.compressed_document(b'original' * 1000, level=9)
+        self.assertTrue(compare(local, remote)['same_document'])
 
 
 if __name__ == '__main__':

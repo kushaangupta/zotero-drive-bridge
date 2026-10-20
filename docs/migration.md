@@ -23,9 +23,10 @@ importing: working PDFs must remain stored attachments for mobile file sync.
 
 ## 1. Configure the source
 
-Keep the shared `collection_name` and `destination_drive_uri` settings described
-in the README. Use the exact name of the existing imported collection if you
-already imported the RIS. An existing collection does not need renaming.
+Keep the `destination_drive_uri` setting from the README. Set `collection_name`
+to the exact import collection name; use the existing name if the RIS is already
+imported. This setting scopes only the one-time repair. The installed bridge
+watches all of My Library, independently of collection membership.
 
 Add these migration settings to your ignored `config.local.json`:
 
@@ -102,7 +103,8 @@ Then run the printed **`repair_zotero`** command. It:
 1. Copies a uniquely matched mounted PDF into Zotero's own storage when needed.
 2. Renames the stored copy using `Year-FirstAuthor-TitleInPascalCase.pdf`.
 3. Imports embedded PDF annotations into Zotero's database.
-4. Exports annotated copies under the last author's surname.
+4. Exports annotated copies under the last author's first initial and surname
+   when the author can be identified; ambiguous names need review.
 5. Writes a resumable report with unresolved sources and review cases.
 
 The original mounted PDFs are preserved. A working linked attachment, several
@@ -137,8 +139,9 @@ use, use its sync command for routine updates instead of rerunning migration
 or initial publication.
 
 The current bootstrap uses the repair report and publication registry created
-above to remember the Zotero collection and its Drive files. Installing the XPI
-alone does not initialize an arbitrary existing collection.
+above to initialize the Drive file registry. The running bridge then watches
+all of My Library; it does not depend on that collection or repair report.
+Installing the XPI alone does not initialize the publication registry.
 
 Return to [the README](../README.md#4-install-the-automatic-bridge) to install
 the automatic bridge and configure other devices. Keep the original exports

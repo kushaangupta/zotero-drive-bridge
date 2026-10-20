@@ -38,5 +38,8 @@ if (!addon.isActive) throw new Error("Installed but the add-on is not active yet
 if (!Zotero.PaperpileDriveBridge || Zotero.PaperpileDriveBridge.project !== project) {
   throw new Error("The add-on is active, but its bridge did not start. Check Zotero's Error Console and rebuild the local configuration.");
 }
-return "Installed. The first Drive sync is running. Later syncs run at the configured interval while Zotero is open. Tools → Sync Drive PDF annotations now runs it immediately.";
+if (typeof Zotero.PaperpileDriveBridge.libraryItems !== "function") {
+  throw new Error("The library-wide update has not activated. Restart Zotero, then run this installer again.");
+}
+return "Installed. The bridge now watches all of My Library. The first Drive sync is running. Later syncs run at the configured interval while Zotero is open. Tools → Sync Drive PDF annotations now runs it immediately.";
 })();

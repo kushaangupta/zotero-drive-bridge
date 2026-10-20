@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Zotero Drive Annotation Bridge",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "Mirror PDF annotations and Google Drive comments using an existing GNOME account.",
   "author": "Contributors",
   "applications": {

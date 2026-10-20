@@ -68,10 +68,13 @@ var DriveAnnotationEngine = class {
     const pushed = status.pushed || {};
     Services.prompt.alert(window, "Drive PDF annotation sync", [
       "Status: " + status.status, "Phase: " + (status.phase || ""),
+      "Scope: " + (status.scope === "my_library" ? "All of My Library" : "Previous collection scope"),
       "Last finished: " + (status.finished || "First sync is still running"),
       "Drive comments added in Zotero: " + (status.imported?.created || 0),
       "Zotero comment edits sent to Drive: " + (pushed.comments_updated || 0),
       "PDF copies updated: " + (pushed.pdfs_updated || 0),
+      "Author names to review: " + (status.author_folder_review?.length || 0),
+      "Standalone PDFs needing a parent reference: " + (status.standalone_pdf_review?.length || 0),
       "Conflicts: " + (pushed.conflicts?.length || 0),
       "Errors: " + ((pushed.errors?.length || 0) + (status.error ? 1 : 0)),
       status.error || "", "Full report: " + this.project + "/.state/drive-bridge-status.json",
@@ -92,11 +95,29 @@ var DriveAnnotationEngine = class {
     if (result.exitCode !== 0) throw new Error("Drive helper failed: " + output.slice(-2500));
   }
 
+  async libraryItems() {
+    const libraryID = Zotero.Libraries.userLibraryID;
+    // Query the library itself so collection membership, including multiple or
+    // nested collections, cannot duplicate or exclude an item. Exclude Trash.
+    const all = (await Zotero.Items.getAll(libraryID, true, false))
+      .filter(item => item.libraryID === libraryID && !item.deleted);
+    return {
+      items: all.filter(item => item.isRegularItem()),
+      standalone: all.filter(item => item.isPDFAttachment?.() && item.isStoredFileAttachment()),
+    };
+  }
+
+  storedPDFs(attachments) {
+    return attachments.filter(a => a.libraryID === Zotero.Libraries.userLibraryID
+      && !a.deleted && a.isPDFAttachment() && a.isStoredFileAttachment());
+  }
+
   async cycle() {
     if (this.busy || this.stopped) return;
     this.busy = true;
     const path = this.project + "/.state/drive-bridge-status.json";
-    const status = {started: new Date().toISOString(), status: "running", phase: "reading Drive comments"};
+    const status = {started: new Date().toISOString(), status: "running", phase: "reading Drive comments",
+      scope: "my_library", library_id: Zotero.Libraries.userLibraryID};
     try {
       await this.write(path, status);
       await this.desktop("pull");
@@ -131,35 +152,57 @@ var DriveAnnotationEngine = class {
           expected_body: mapping.drive_body, zotero_comment: current,
           expected_zotero_comment: mapping.zotero_comment});
       }
-      status.phase = "exporting annotated PDFs";
+      status.phase = "reading My Library";
       await this.write(path, status);
+      const {items, standalone} = await this.libraryItems();
+      status.items_scanned = items.length;
+      status.standalone_pdf_review = standalone.map(a => ({attachment_key: a.key,
+        reason: "standalone_pdf_needs_parent_metadata"}));
+      const authorID = Zotero.CreatorTypes.getID("author");
+      const authorMetadata = [];
+      for (const item of items) {
+        await item.loadAllData();
+        if (item.deleted) continue;
+        const last = item.getCreators().filter(c => c.creatorTypeID === authorID).at(-1);
+        const attachments = await Zotero.Items.getAsync(item.getAttachments());
+        for (const attachment of this.storedPDFs(attachments)) {
+          authorMetadata.push({attachment_key: attachment.key, firstName: last?.firstName || "",
+            lastName: last?.lastName || "", fieldMode: last?.fieldMode || 0});
+        }
+      }
+      await this.write(this.project + "/.state/author-folder-metadata.json", {authors: authorMetadata});
+      status.phase = "organizing author folders";
+      await this.write(path, status);
+      await this.desktop("organize");
+      const folderPlan = await this.read(this.project + "/.state/author-folder-plan.json", null);
+      if (!folderPlan) throw new Error("Author folder assignments are missing");
+      status.author_folder_review = folderPlan.review;
+      if (folderPlan.applied?.errors?.length) throw new Error("Author folder organization needs review; see .state/author-folder-plan.json");
       const registry = await this.read(this.registry, null);
       if (!registry) throw new Error("The verified Drive publication registry is missing");
-      const repair = await this.read(this.project + "/output/migration/zotero-repair-report.json", null);
-      const collection = Zotero.Collections.get(repair.collection_id);
-      if (!collection || collection.libraryID !== Zotero.Libraries.userLibraryID) throw new Error("Migration collection is missing");
-      await collection.loadAllData();
       const oldBox = await this.read(this.project + "/.state/drive-outbox.json", {files: {}});
       const box = {files: {}, comments: packets};
       const fullDirectory = this.project + "/output/sync/annotated-pdfs";
       await IOUtils.makeDirectory(fullDirectory, {createAncestors: true, ignoreExisting: true});
       const owners = new Map(Object.entries(registry.files).map(([key, r]) => [r.relative_path, key]));
-      const authorID = Zotero.CreatorTypes.getID("author");
-      for (const item of collection.getChildItems().filter(i => i.isRegularItem())) {
+      status.phase = "exporting annotated PDFs";
+      await this.write(path, status);
+      for (const item of items) {
         await item.loadAllData();
-        const authors = item.getCreators().filter(c => c.creatorTypeID === authorID);
-        const surname = Zotero.File.getValidFileName(authors.at(-1)?.lastName || "");
+        if (item.deleted) continue;
         const year = Zotero.Date.strToDate(item.getField("date")).year;
-        if (!surname || !year || !item.getField("title")) continue;
+        if (!year || !item.getField("title")) continue;
         const base = Zotero.Attachments.getFileBaseNameFromItem(item,
           {formatString: '{{ year }}-{{ authors max="1" name="family" }}-{{ title case="pascal" }}'}) + ".pdf";
         const attachments = await Zotero.Items.getAsync(item.getAttachments());
-        for (const attachment of attachments.filter(a => a.isPDFAttachment() && a.isStoredFileAttachment())) {
+        for (const attachment of this.storedPDFs(attachments)) {
           await attachment.loadAllData();
           const source = await attachment.getFilePathAsync();
           if (!source || !await IOUtils.exists(source)) continue;
           if (!source.startsWith(Zotero.Attachments.getStorageDirectory(attachment).path + "/")) continue;
           const registered = registry.files[attachment.key];
+          const folder = folderPlan.assignments[attachment.key]?.folder || registered?.relative_path.split("/")[0];
+          if (!folder) continue;
           if (!registered && !oldBox.files[attachment.key]) {
             await Zotero.PDFWorker.import(attachment.id, true, undefined, true);
             attachment.attachmentSyncedHash = null;
@@ -167,9 +210,9 @@ var DriveAnnotationEngine = class {
             await attachment.saveTx();
             await attachment.loadAllData();
           }
-          let relative = registered?.relative_path || surname + "/" + base;
+          let relative = registered?.relative_path || folder + "/" + base;
           if (owners.has(relative) && owners.get(relative) !== attachment.key) {
-            relative = surname + "/" + base.replace(/\.pdf$/, "-" + attachment.key + ".pdf");
+            relative = folder + "/" + base.replace(/\.pdf$/, "-" + attachment.key + ".pdf");
           }
           owners.set(relative, attachment.key);
           const annotations = attachment.getAnnotations();
@@ -207,7 +250,8 @@ var DriveAnnotationEngine = class {
       const pushed = await this.read(this.project + "/.state/drive-push-report.json", {});
       status.pushed = pushed;
       status.status = imported.summary.review || imported.summary.errors || imported.preparation_errors.length
-        || pushed.conflicts?.length || pushed.errors?.length || status.reply_edits_need_review ? "needs_review" : "finished";
+        || pushed.conflicts?.length || pushed.errors?.length || status.reply_edits_need_review
+        || folderPlan.review.length || status.standalone_pdf_review.length ? "needs_review" : "finished";
       status.finished = new Date().toISOString();
       await this.write(path, status);
     } catch (error) {
